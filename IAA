@@ -1,0 +1,173 @@
+import random
+import unicodedata
+import os
+
+# Identifier le répertoire où se trouve le script
+dossier_script = os.path.dirname(os.path.abspath(__file__))
+
+# Construire le chemin du fichier French_words.txt
+chemin_fichier = os.path.join(dossier_script, "French_words.txt")
+
+# Lire les mots depuis French_words.txt avec un encodage tolérant
+with open(chemin_fichier, "r", encoding="latin-1") as fichier:
+    mots = fichier.read().splitlines()
+
+
+# Enlever les accents
+mots_sans_accents = [
+    ''.join(c for c in unicodedata.normalize('NFD', mot) if unicodedata.category(c) != 'Mn')
+    for mot in mots
+]
+
+# Afficher les 10 premiers mots sans accents pour vérifier
+print(mots_sans_accents[:10])
+
+# Choisir le mot secret parmi les mots sans accents
+mot_secret = random.choice(mots_sans_accents)
+
+def verifier_mot(mot_joueur, mot_secret):
+    resultat = []
+    for i in range(len(mot_joueur)):
+        if i < len(mot_secret) and mot_joueur[i] == mot_secret[i]:
+            resultat.append('V')  # Lettre correcte et bien placée
+        elif mot_joueur[i] in mot_secret:
+            resultat.append('J')  # Lettre correcte mais mal placée
+        else:
+            resultat.append('X')  # Lettre incorrecte
+    return ''.join(resultat)
+
+
+    
+    
+    
+   
+   
+   
+   
+   
+   
+   
+   
+    
+  
+    #SUITE IA !!
+    
+
+# Charger le dictionnaire
+def charger_dictionnaire(fichier):
+    with open(fichier, 'r', encoding='utf-8') as f:
+        return [ligne.strip() for ligne in f if ligne.strip()]
+
+# Calculer les probabilités des lettres
+def calculer_probabilites(dictionnaire):
+    total_lettres = sum(len(mot) for mot in dictionnaire)
+    frequences = {}
+    for mot in dictionnaire:
+        for lettre in mot:
+            frequences[lettre] = frequences.get(lettre, 0) + 1
+    return {lettre: freq / total_lettres for lettre, freq in frequences.items()}
+
+# Calculer le score d'un mot
+def calculer_score(mot, probabilites):
+    return sum(probabilites.get(lettre, 0) for lettre in mot)
+
+# Choisir le meilleur mot
+def choisir_meilleur_mot(dictionnaire, probabilites, taille=None):
+    mots_scores = [(mot, calculer_score(mot, probabilites)) for mot in dictionnaire if taille is None or len(mot) == taille]
+    mots_scores.sort(key=lambda x: -x[1])  # Trier par score décroissant
+    meilleurs_mots = [mot for mot, score in mots_scores if score == mots_scores[0][1]]  # Gérer les égalités
+    return random.choice(meilleurs_mots)
+
+# Mettre à jour le dictionnaire en fonction des retours
+def mettre_a_jour_dictionnaire(dictionnaire, mot, feedback):
+    nouveau_dictionnaire = []
+    for mot_candidat in dictionnaire:
+        # Vérifiez que le mot candidat a la même longueur que le mot
+        if len(mot_candidat) != len(mot):
+            continue
+        
+        correspond = True
+        for i, lettre in enumerate(mot):
+            if feedback[i] == "bien" and mot_candidat[i] != lettre:
+                correspond = False
+            elif feedback[i] == "mal" and (lettre not in mot_candidat or mot_candidat[i] == lettre):
+                correspond = False
+            elif feedback[i] == "absent" and lettre in mot_candidat:
+                correspond = False
+        
+        if correspond:
+            nouveau_dictionnaire.append(mot_candidat)
+    return nouveau_dictionnaire
+
+
+# Début du jeu
+if __name__ == "__main__":
+    MAX_TENTATIVES = 6
+    tentatives = 0
+    print(f"Bienvenue dans le jeu ! Devinez le mot secret ({len(mot_secret)} lettres).")
+
+    # Charger le dictionnaire complet et calculer les probabilités une seule fois
+dictionnaire_complet = charger_dictionnaire(chemin_fichier)
+dictionnaire_ia = dictionnaire_complet.copy()  # Copie pour les mises à jour
+probabilites = calculer_probabilites(dictionnaire_complet)
+
+mot_trouve = False
+
+# Début du jeu
+while tentatives < MAX_TENTATIVES:
+    mot_joueur = input(f"Tentative {tentatives + 1}/{MAX_TENTATIVES}: ").strip().upper()
+
+    # Vérifier si l'utilisateur active l'IA
+    if mot_joueur == "JOKER":
+        print("IA activée !")
+
+        # L'IA propose un mot
+        mot_propose = choisir_meilleur_mot(dictionnaire_ia, probabilites, taille=len(mot_secret))
+        print(f"L'IA propose : {mot_propose}")
+
+        # Générer automatiquement le feedback
+        resultat = verifier_mot(mot_propose, mot_secret)
+        feedback = [
+            "bien" if lettre == "V" else "mal" if lettre == "J" else "absent"
+            for lettre in resultat
+        ]
+        print(f"Feedback généré : {' '.join(feedback)}")
+
+        # Si l'IA trouve le mot
+        if all(f == "bien" for f in feedback):
+            print(f"Mot trouvé par l'IA : {mot_propose} en {tentatives + 1} essais!")
+            mot_trouve = True
+            break
+
+        # Mise à jour du dictionnaire
+        dictionnaire_ia = mettre_a_jour_dictionnaire(dictionnaire_ia, mot_propose, feedback)
+        print(f"Mots restants dans le dictionnaire : {len(dictionnaire_ia)}")
+
+        # Incrémenter le nombre de tentatives et passer à la suivante
+        tentatives += 1
+        continue
+
+    # Vérifier la validité du mot saisi par l'utilisateur
+    if len(mot_joueur) != len(mot_secret):
+        print(f"Veuillez entrer un mot de {len(mot_secret)} lettres.")
+        continue
+    if mot_joueur not in mots_sans_accents:
+        print("Mot invalide. Assurez-vous d'entrer un mot valide du dictionnaire.")
+        continue
+
+    # Vérifier le mot et afficher le résultat
+    resultat = verifier_mot(mot_joueur, mot_secret)
+    print("Résultat:", resultat)
+
+    # Si le joueur a trouvé le mot
+    if mot_joueur == mot_secret:
+        print("Félicitations ! Vous avez trouvé le mot secret !")
+        break
+
+    # Incrémenter le nombre de tentatives
+    tentatives += 1
+
+if mot_trouve:
+    print("Bravo encore, tu as gagné cette partie !")
+else:
+    print(f"Désolé, tu as épuisé toutes tes tentatives. Le mot secret était : {mot_secret}.")
